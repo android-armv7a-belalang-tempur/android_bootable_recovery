@@ -38,6 +38,7 @@
 #include "fixPermissions.hpp"
 #include "twrpDigest.hpp"
 #include "twrpDU.hpp"
+#include "set_metadata.h"
 
 #ifdef TW_HAS_MTP
 #include "mtp/mtp_MtpServer.hpp"
@@ -757,6 +758,7 @@ int TWPartitionManager::Run_Backup(void) {
 	gui_print_color("highlight", "[BACKUP COMPLETED IN %d SECONDS]\n\n", total_time); // the end
 	string backup_log = Full_Backup_Path + "recovery.log";
 	TWFunc::copy_file("/tmp/recovery.log", backup_log, 0644);
+	tw_set_default_metadata(backup_log.c_str());
 	return true;
 }
 
@@ -1475,8 +1477,6 @@ int TWPartitionManager::usb_storage_enable(void) {
 	char lun_file[255];
 	bool has_multiple_lun = false;
 
-	property_set("sys.storage.ums_enabled", "1");
-	sleep(1);
 	DataManager::GetValue(TW_HAS_DATA_MEDIA, has_data_media);
 	string Lun_File_str = CUSTOM_LUN_FILE;
 	size_t found = Lun_File_str.find("%");
@@ -1522,12 +1522,12 @@ int TWPartitionManager::usb_storage_enable(void) {
 			goto error_handle;
 		}
 	}
+	property_set("sys.storage.ums_enabled", "1");
 	return true;
 error_handle:
 	if (mtp_was_enabled)
 		if (!Enable_MTP())
 			Disable_MTP();
-	property_set("sys.storage.ums_enabled", "0");
 	return false;
 }
 
@@ -1904,6 +1904,7 @@ bool TWPartitionManager::Enable_MTP(void) {
 	TWFunc::write_file("/sys/class/android_usb/android0/idVendor", vendorstr);
 	TWFunc::write_file("/sys/class/android_usb/android0/idProduct", productstr);
 	property_set("sys.usb.config", "mtp,adb");
+	usleep(2000); // Short sleep to prevent an occasional kernel panic on some devices
 	std::vector<TWPartition*>::iterator iter;
 	/* To enable MTP debug, use the twrp command line feature to
 	 * twrp set tw_mtp_debug 1
@@ -1947,6 +1948,7 @@ bool TWPartitionManager::Disable_MTP(void) {
 	string productstr = product;
 	TWFunc::write_file("/sys/class/android_usb/android0/idVendor", vendorstr);
 	TWFunc::write_file("/sys/class/android_usb/android0/idProduct", productstr);
+	usleep(2000);
 	if (mtppid) {
 		LOGINFO("Disabling MTP\n");
 		int status;
